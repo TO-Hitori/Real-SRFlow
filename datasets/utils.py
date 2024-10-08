@@ -2,14 +2,112 @@
 dataset: laion-high-resolution
 path: D:/Dateset/laion-high-resolution/00028/
 
-
-
 """
 import os
 from typing import List
 from PIL import Image
 import statistics
 from tqdm import tqdm
+import albumentations as A
+import cv2
+import numpy as np
+
+def print_info(img):
+    print("=-" * 20)
+    print(type(img))
+    print(img.shape)
+    print(img.dtype)
+    print(img.min(), img.max())
+    print("=-" * 20)
+
+def save_numpy(img, save_path="./result/save_numpy.png"):
+    img = Image.fromarray(img)
+    img.save(save_path)
+
+def save_tensor(img, save_path="./result/save_numpy.png"):
+    from torchvision.utils import save_image, make_grid
+    save_image((img + 1) * 0.5, save_path)
+
+def image_degra_demo(image_path, save_path):
+    image_path = image_path.replace('\\', '/')
+    image_name = image_path.split('/')[-1].split('.')[0]
+    image = np.array(Image.open(image_path).convert('RGB'))
+    first_deg_image, second_degra_image = image_degraduation(image)
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+
+    save_numpy(image, os.path.join(save_path, f"{image_name}.png"))
+    save_numpy(first_deg_image, os.path.join(save_path, f"{image_name}_1st.png"))
+    save_numpy(second_degra_image, os.path.join(save_path, f"{image_name}_2nd.png"))
+    print_info(image)
+    print_info(first_deg_image)
+    print_info(second_degra_image)
+
+
+def image_degraduation(image):
+    h, w, c = image.shape
+    h1, w1 = h // 2, w // 2
+    h2, w2 = h1 // 2, w1 // 2
+
+    first_degra_module = A.Compose([
+        A.AdvancedBlur(
+            blur_limit=(7, 21),
+            sigma_x_limit=(0.2, 3.0),
+            sigma_y_limit=(0.2, 3.0),
+            beta_limit=(0.5, 4),
+            p=1.0
+        ),
+        A.OneOf([
+            A.Resize(h1, w1, interpolation=cv2.INTER_LINEAR_EXACT, p=0.25),
+            A.Resize(h1, w1, interpolation=cv2.INTER_CUBIC, p=0.25),
+            A.Resize(h1, w1, interpolation=cv2.INTER_AREA, p=0.25),
+            A.Resize(h1, w1, interpolation=cv2.INTER_LANCZOS4, p=0.25),
+        ], p=1.0),
+        A.OneOf([
+            A.GaussNoise(var_limit=(1, 30), p=0.5),
+            A.ISONoise(color_shift=(0.01, 0.05), intensity=(0.05, 2), p=0.5),
+        ], p=1.0),
+        A.OneOf([
+            A.ImageCompression(quality_range=(30, 95), compression_type="jpeg", p=0.5),
+            A.ImageCompression(quality_range=(30, 95), compression_type="webp", p=0.5),
+        ], p=1.0),
+    ])
+    '''
+    Second degradation processes
+    Blur -> Resize -> Noise -> JPEG + sinc
+    '''
+    second_degra_module = A.Compose([
+        A.AdvancedBlur(
+            blur_limit=(7, 21),
+            sigma_x_limit=(0.2, 1.5),
+            sigma_y_limit=(0.2, 1.5),
+            beta_limit=(0.5, 4),
+            p=0.8
+        ),
+        A.OneOf([
+            A.Resize(h2, w2, interpolation=cv2.INTER_LINEAR_EXACT, p=0.25),
+            A.Resize(h2, w2, interpolation=cv2.INTER_CUBIC, p=0.25),
+            A.Resize(h2, w2, interpolation=cv2.INTER_AREA, p=0.25),
+            A.Resize(h2, w2, interpolation=cv2.INTER_LANCZOS4, p=0.25),
+        ], p=1.0),
+        A.OneOf([
+            A.GaussNoise(var_limit=(1, 25), p=0.5),
+            A.ISONoise(color_shift=(0.01, 0.05), intensity=(0.05, 1.5), p=0.5),
+        ], p=1.0),
+        A.OneOf([
+            A.ImageCompression(quality_range=(30, 95), compression_type="jpeg", p=0.5),
+            A.ImageCompression(quality_range=(30, 95), compression_type="webp", p=0.5),
+        ], p=1.0),
+        A.RingingOvershoot(
+            blur_limit=(9, 21),
+            cutoff=(np.pi / 6, np.pi / 3),
+            p=0.8
+        )
+    ])
+    first_deg_image = first_degra_module(image=image)["image"]
+    second_degra_image = second_degra_module(image=first_deg_image)["image"]
+    return first_deg_image, second_degra_image
+
 
 
 def get_metadata_link() -> List[str]:
@@ -62,6 +160,6 @@ def filter_image_dataset(image_folder: str, width_threshold: int = 1000, height_
 
 
 if __name__ == "__main__":
-    dataset_directory = "D:/Dateset/laion-high-resolution/00005/"
-    filter_image_dataset(dataset_directory)
-    # get_metadata_link()
+    path = "C:/Users/WJQpe/Downloads/pixiv/108067863_p0.jpg"
+    image_degra_demo(path, './deg_demo/')
+
