@@ -12,24 +12,7 @@ import cv2
 import numpy as np
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
-
-
-def print_info(img):
-    print("=-" * 20)
-    print(type(img))
-    print(img.shape)
-    print(img.dtype)
-    print(img.min(), img.max())
-    print("=-" * 20)
-
-
-def save_numpy(img, save_path="./result/save_numpy.png"):
-    img = Image.fromarray(img)
-    img.save(save_path)
-
-def save_tensor(img, save_path="./result/save_numpy.png"):
-    from torchvision.utils import save_image, make_grid
-    save_image((img + 1) * 0.5, save_path)
+import utils
 
 
 class LaionHRDataset(Dataset):
@@ -159,20 +142,24 @@ class LaionHRDataset(Dataset):
     def __len__(self) -> int:
         return len(self.image_list)
 
+
 from torch.utils.data import DataLoader
 
 if __name__ == "__main__":
-
-    data_root = "D:/Dateset/DIV2K/DIV2K_valid_HR/DIV2K_valid_HR/"
+    data_root = "C:/Users/WJQpe/Downloads/pixiv/"
     batch_size = 16
 
-    laion_ds = LaionHRDataset(data_root, crop_size=1024)
+    laion_ds = LaionHRDataset(data_root, crop_size=2480)
 
-    image, image1  = laion_ds.__getitem__(30)
-    print_info(image)
-    print_info(image1)
-    save_numpy(image, "./result/crop.png")
-    save_numpy(image1, "./result/deg1.png")
+    sample = laion_ds.__getitem__(1)
+    image = sample["image_hr"]
+    image1 = sample["image_deg"]
+
+    utils.print_info(image)
+    utils.print_info(image1)
+
+    utils.save_tensor(image, "./result/crop.png")
+    utils.save_tensor(image1, "./result/deg1.png")
 
     data_loader = DataLoader(
         dataset=laion_ds,
@@ -180,7 +167,3 @@ if __name__ == "__main__":
         shuffle=False,
         num_workers=0,
     )
-
-
-
-
